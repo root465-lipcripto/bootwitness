@@ -1,0 +1,5 @@
+/target/
+/bw
+/testbin
+*.bws
+*.bws.sha256

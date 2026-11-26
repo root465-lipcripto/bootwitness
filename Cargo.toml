@@ -1,0 +1,20 @@
+[package]
+name = "bootwitness"
+version = "0.1.0"
+edition = "2024"
+description = "Local-first Linux snapshot comparison and regression evidence CLI"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/root465-lipcripto/bootwitness"
+readme = "README.md"
+keywords = ["linux", "kernel", "regression", "diagnostics", "cli"]
+categories = ["command-line-utilities", "os::linux-apis"]
+
+[[bin]]
+name = "bw"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
