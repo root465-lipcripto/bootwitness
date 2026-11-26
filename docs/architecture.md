@@ -1,13 +1,17 @@
 # Architecture
 
-BOOTWITNESS 0.1 is a single Rust binary with no third-party crates.
+BOOTWITNESS 0.2 is a dependency-free Rust binary split into five modules:
 
-1. **Collector** reads selected procfs/sysfs/os-release values and optionally invokes journalctl with fixed arguments. It never evaluates user-provided shell text.
-2. **Snapshot codec** writes a version header and hex-encodes keys and values so tabs, newlines, and Unicode cannot corrupt record boundaries.
-3. **Comparator** ignores snapshot identity fields and compares the remaining collected values plus exact event string counts.
-4. **Report writer** formats observed deltas and repeats the causal uncertainty in the output.
-5. **Integrity check** hashes snapshot bytes with sha256sum and stores the digest next to the snapshot.
+- model: shared snapshot and application error types.
+- collectors: procfs/sysfs, kernel-only journalctl and failed systemd unit collection.
+- storage: versioned snapshot codec, local paths, collision-safe writes, and SHA-256 verification.
+- analysis: field/event comparison, deterministic subsystem diagnoses, and report redaction/rendering.
+- process: bounded child process execution with timeout and stdout/stderr limits.
 
-The snapshot format is versioned. Unsupported versions and malformed or duplicate fields fail closed. The current format is text, not a stable interchange format yet.
+Collectors use fixed executable names and fixed arguments. They do not invoke a shell. journalctl and systemctl have a five-second timeout; their captured output is capped and truncation is recorded. The output reader drains stdout and stderr concurrently to avoid pipe deadlocks.
 
-The initial data directory is per-user state. There is no database schema, service, background scheduler, or privileged collector split in this release.
+Kernel events are comparable only when both snapshots have journal.status=available. Timed-out, failed, or truncated output is not comparable. systemd failed-unit additions are diagnosed only when both snapshots have systemd.status=available. Missing coverage never becomes an empty-success result.
+
+Snapshots use a versioned text format with hex-encoded keys and values. The on-disk format remains version 1, so prior snapshots remain readable; older snapshots without explicit collector status are conservatively treated as incomplete for event comparison.
+
+The application is local and read-only. It has no daemon, database, network client, automatic action, or privileged helper.

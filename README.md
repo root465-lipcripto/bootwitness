@@ -2,45 +2,45 @@
 
 **Linux Regression Intelligence — Capture. Compare. Diagnose. Prove.**
 
-BOOTWITNESS is a local-first Linux CLI that records a small, versioned snapshot of selected system state, compares two snapshots, highlights newly observed kernel-journal errors, and writes a cautious Markdown investigation report.
+BOOTWITNESS is a local-first Linux CLI for collecting a small system snapshot, comparing it with a baseline, and organizing evidence into subsystem-specific findings. Version 0.2.0 adds kernel-only journal collection, failed-unit context, cautious comparison rules, and best-effort report redaction.
 
-The first release is intentionally an MVP. It does not claim to identify the cause of a failure. A changed kernel and a changed error count are observations that help guide controlled reproduction; they are not proof of a kernel regression.
+A finding is a lead to investigate. It is not a confirmed regression, root cause, or probability score.
 
-## What it does
+## What 0.2.0 does
 
-- Captures kernel release/version, selected boot arguments, OS name, memory totals, loaded module count, mount and disk device counts, CPU/memory/I/O pressure summaries, network interface names, and up to 500 current-boot journal error messages when journalctl is readable.
-- Stores snapshots as local versioned text files with restrictive permissions on Unix systems.
-- Compares fields and event counts between a baseline and a later snapshot.
-- Generates a Markdown report with best-effort redaction of the current home path and IPv4 addresses.
-- Writes a SHA-256 sidecar and checks it later to catch accidental file changes.
-- Works offline and requires no root privileges for the basic capture. Journal visibility depends on the local system's permissions.
+- Captures selected procfs/sysfs values: kernel release/version and boot arguments, OS name, memory totals, module count, mounted filesystem count, disk device count, CPU/memory/I/O PSI summaries, and network interface names.
+- Reads up to 500 current-boot error-priority kernel messages using journalctl with the kernel-only option.
+- Records failed systemd unit names when systemctl is reachable.
+- Tracks collection availability explicitly. Error events are compared only when both snapshots report an available kernel journal; incomplete coverage is shown as a warning.
+- Compares system fields and event counts, and resolves snapshots by ID, explicit path, or human-readable name. Reusing a name resolves to its newest snapshot; each capture receives a nanosecond timestamp ID and does not overwrite an existing target.
+- Runs deterministic rules for EXT4/JBD2 errors, AMDGPU/DRM errors, OOM events and substantial drops in available memory, plus newly failed systemd units.
+- Produces Markdown reports that redact common secrets, IPv4/IPv6 addresses, MAC addresses, email-like tokens and the current home path. Redaction remains best-effort.
+- Bounds journalctl and systemctl execution to five seconds and caps captured output. SHA-256 execution is also bounded.
+- Stores data locally with private Unix directory/file permissions and makes no network requests.
 
-## What it does not do yet
+## Deliberate limits
 
-No daemon, automatic update hooks, TUI, SQLite database, active probes, hardware/PCI inventory, package history, statistical scoring, kernel bisect, recovery actions, or automatic upstream reporting are included. The roadmap lists these as future work, not current features.
+The diagnostic engine classifies collected evidence; it does not run active hardware or filesystem probes, change system state, identify a responsible kernel commit, or prove causality. Event matching is still exact text matching, so timestamps and message formatting can affect comparisons. Existing failed systemd units are not called new unless both snapshots had a usable systemd baseline.
+
+This version does not include a daemon, update hooks, TUI, SQLite, hardware/PCI inventory, package history, statistical confidence score, kernel bisect, recovery actions, or automatic upstream reporting.
 
 ## Requirements
 
 - Linux for real system collection.
-- Rust toolchain with Cargo to build from source.
-- sha256sum from GNU coreutils for integrity hashing.
-- journalctl is optional; without it, journal events are recorded as unavailable.
-- No network connection is used by the program.
+- Rust stable with Cargo to build.
+- sha256sum from GNU coreutils for evidence hashes.
+- journalctl and systemctl are optional. Their status is recorded as available, unavailable, or timed out.
+- No root access or network connection is required for normal use.
 
 ## Build and install
 
-```
+~~~
 git clone https://github.com/root465-lipcripto/bootwitness.git
 cd bootwitness
 cargo build --release
 ./target/release/bw --help
-```
-
-To install for the current user:
-
-```
 install -Dm755 target/release/bw "$HOME/.local/bin/bw"
-```
+~~~
 
 Make sure $HOME/.local/bin is on PATH.
 
@@ -48,78 +48,79 @@ Make sure $HOME/.local/bin is on PATH.
 
 Capture a healthy baseline before a kernel or driver update:
 
-```
+~~~
 bw doctor
 bw snapshot create --name before-update
 bw snapshot list
-```
+~~~
 
-After updating and rebooting:
+After the update and reboot:
 
-```
+~~~
 bw snapshot create --name after-update
 bw diff before-update after-update
+bw diagnose before-update after-update
 bw report before-update after-update --output regression-report.md
-```
+~~~
 
-The report is local. Review it and remove sensitive information before sharing it with maintainers or support teams.
+The examples resolve by label; if a label is reused, BOOTWITNESS selects its most recent capture. Use the full ID or path printed during capture when you need an exact one.
 
-To validate the stored snapshot and checksum:
+Verify a snapshot and its adjacent checksum:
 
-```
+~~~
 bw evidence verify "$HOME/.local/state/bootwitness/ID.bws"
-```
+~~~
 
-Or use the path printed by snapshot creation. Integrity verification detects changes relative to the adjacent local checksum file; it does not authenticate who created either file.
+This catches accidental changes only if the sidecar itself is trusted. It does not authenticate the snapshot's origin.
 
-## Command reference
+## Commands
 
 | Command | Purpose |
 | --- | --- |
 | bw init | Create the local state directory. |
-| bw doctor | Check platform, architecture, journalctl availability, and state directory access. |
-| bw snapshot create --name NAME | Capture a snapshot. Names accept ASCII letters, digits, hyphens, and underscores. |
-| bw snapshot list | List local snapshots. |
-| bw snapshot show ID | Print the fields and collection notes in a snapshot. |
-| bw diff BASE CURRENT | Compare snapshots and show changed fields and errors whose count increased. |
-| bw report BASE CURRENT [--output FILE] | Generate a Markdown report. |
-| bw evidence verify FILE | Validate snapshot format and SHA-256 sidecar. |
+| bw doctor | Check Linux, architecture, state directory, journalctl, and sha256sum. |
+| bw snapshot create --name NAME | Capture system context and evidence. |
+| bw snapshot list | List IDs, names, and capture timestamps. |
+| bw snapshot show ID-OR-NAME | Inspect a snapshot and collection notes. |
+| bw diff BASE CURRENT | Compare fields and kernel error counts; report coverage gaps. |
+| bw diagnose BASE CURRENT | Run deterministic subsystem rules over the captured evidence. |
+| bw report BASE CURRENT [--output FILE] | Write a reviewable Markdown report. |
+| bw evidence verify FILE | Check snapshot format and SHA-256 sidecar. |
 
-Snapshot arguments can be IDs from the local state directory or explicit file paths.
+Arguments to diff, diagnose, report and show accept an ID, a name, or a direct snapshot path.
 
-## Testing without touching the host
+## Data collection and privacy
 
-The smoke test builds a minimal fake Linux proc/sys tree, captures two snapshots from it, changes the kernel release and journal fixture, and checks diff/report/integrity behavior.
+Snapshots are stored under XDG_STATE_HOME/bootwitness, or ~/.local/state/bootwitness if XDG_STATE_HOME is unset. Set BW_HOME for a different location. Unix state directories use mode 0700 and snapshot files mode 0600.
 
-```
-cargo test
-cargo build
+Snapshots may include raw kernel error messages and boot arguments. Common secret-like boot argument keys are masked during capture. Report redaction runs on the exported report, but it is not a security boundary and does not modify the original snapshot. Review reports before sharing.
+
+journalctl and systemctl are run with fixed arguments and no shell. Child processes have a five-second timeout; output is bounded. Missing permissions or missing services are recorded as unavailable rather than replaced with invented values.
+
+See docs/privacy.md, docs/threat-model.md, and docs/architecture.md.
+
+## Interpretation
+
+- A kernel version change beside new messages is temporal context, not proof of a cause.
+- Kernel messages are compared only if both snapshot collectors report journal status available.
+- The collection reads only the latest 500 current-boot kernel messages at error priority. Permissions, journal retention and output limits affect coverage.
+- systemd unit differences are only inferred when both captures could query systemctl.
+- Memory availability falling by more than 25% is a deterministic investigation hint, not a regression claim.
+- Event text is compared exactly. Message timestamps or changing values can cause similar events to appear distinct.
+- Reproduce the issue with controlled A/B boots and review the generated evidence before reporting upstream.
+
+## Development and tests
+
+The source is split into model, collector, storage, analysis and process modules.
+
+~~~
+cargo test --all-targets
+cargo clippy --all-targets -- -D warnings
+cargo build --release
 bash tests/smoke.sh
-```
+~~~
 
-For deterministic local experiments, set BW_HOME to a temporary state directory and BW_ROOT to a fixture root containing proc, sys, and etc folders. BW_ROOT is intended for development/testing; it does not emulate all Linux kernel interfaces.
-
-## Data and privacy
-
-Snapshots stay in the selected local state directory. The default is $XDG_STATE_HOME/bootwitness, or ~/.local/state/bootwitness when XDG_STATE_HOME is unset. Set BW_HOME to choose another location.
-
-On Unix, the directory is set to mode 0700 and snapshot files to 0600. The snapshot can contain raw journal error messages and boot parameters. Boot arguments whose key appears to contain password, passwd, token, secret, or key are masked during collection, but this is not a complete secret detector.
-
-Report redaction is deliberately described as best-effort. It replaces the current HOME path and IPv4-looking tokens; it does not promise removal of usernames, serial numbers, MAC addresses, email addresses, IPv6 addresses, or arbitrary secrets. Read the report before sharing it.
-
-See docs/privacy.md and docs/threat-model.md for details.
-
-## How to interpret results
-
-- “New error” means an exact event string was absent from the baseline event set or its count increased. Timestamps are not normalized, so repeated messages with different timestamps may look like new messages.
-- The journal collector asks journalctl for the latest 500 error-priority messages from the current boot. Access restrictions, retention, and truncation affect the comparison.
-- Captures taken at different points in a boot can differ because the system state changed normally.
-- A kernel version change next to a new error is temporal context only. Reproduce with controlled A/B boots before calling it a regression.
-- SHA-256 protects against unnoticed accidental modifications only when the checksum file itself is trusted.
-
-## Contributing
-
-See CONTRIBUTING.md. Changes should preserve the offline, read-only default and include fixtures or tests for new collection behavior.
+The smoke test builds a fake proc/sys tree and stub journalctl/systemctl executables. It checks kernel-only journal arguments, subsystem diagnosis, missing-baseline handling, label lookup, unique IDs, redaction, timeout/output bounds, permissions, and integrity tampering without changing the host.
 
 ## License
 

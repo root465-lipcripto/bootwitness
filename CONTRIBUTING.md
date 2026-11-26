@@ -1,11 +1,10 @@
 # Contributing
 
-Thanks for helping improve BOOTWITNESS.
-
-- Keep the default behavior offline and read-only.
-- Do not add arbitrary shell execution or automatic system changes.
-- Represent unavailable data as unavailable; do not invent defaults that look like measurements.
-- Add deterministic tests or fixtures for parser, collector, and comparison changes.
-- Explain data sensitivity and permission requirements for each new source.
-- Keep reports clear that correlation does not prove causation.
-- Run cargo fmt --check, cargo test, cargo clippy -- -D warnings, and bash tests/smoke.sh before submitting changes.
+- Keep default behavior offline and read-only.
+- Do not add arbitrary command execution or automatic system changes.
+- Mark unavailable or timed-out sources explicitly. Never treat missing data as a zero measurement.
+- Keep kernel messages restricted to kernel journal sources.
+- Add tests for available, unavailable, timed-out, truncated, and malformed inputs when touching collectors or storage.
+- Preserve the causal uncertainty in diffs and reports.
+- Document sensitive data sources and report redaction limits.
+- Run cargo test --all-targets, cargo clippy --all-targets -- -D warnings, cargo build --release, and bash tests/smoke.sh before submitting.

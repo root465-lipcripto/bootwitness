@@ -1,11 +1,11 @@
 # Privacy
 
-Collection is local and does not upload data. The journal collector may save error-priority message text, which can contain usernames, paths, device identifiers, addresses, or application data. Treat snapshot files as sensitive.
+Collection is local and does not upload data. Kernel journal error text may contain paths, user names, addresses, device identifiers, or application data. Treat snapshots as sensitive.
 
-Unix state folders use mode 0700 and snapshot files use mode 0600. These permissions reduce exposure to other local accounts; they do not protect against the same user, root, backups, or a compromised host.
+On Unix, state directories are set to mode 0700 and snapshot files to 0600. The checksum sidecar is not itself sensitive. These permissions do not protect against the same user, root, backups, or a compromised host.
 
-The boot command line is kept with values masked when their parameter names contain common secret-related fragments. This heuristic can miss secrets and can mask harmless values.
+The kernel command line masks parameter names containing password, passwd, token, secret, or key. Reports additionally redact the active HOME path, IPv4 and IPv6-like tokens, MAC addresses, email-like tokens, and common secret assignments. This is best-effort text processing; it may miss secrets and can redact harmless strings. It does not modify snapshots.
 
-Report redaction currently replaces the active HOME path and IPv4-like tokens. It is not comprehensive anonymization. Inspect reports manually before publishing or sending them. Snapshot exports are not implemented.
+The journal collector requests only current-boot, error-priority kernel messages, capped at 500 lines and a bounded output size. It records whether collection was available. The systemd collector records names of failed units when systemctl can query the manager.
 
-The checksum detects data changes compared with the sidecar. Since both are stored locally and can be edited together, it is not a signature or proof of origin.
+Review reports before sharing them. Do not submit real journal content, personal paths, addresses, or secrets in public issues.
