@@ -290,12 +290,12 @@ fn encode_hex(bytes: &[u8]) -> String {
 }
 
 fn decode_hex(value: &str) -> Result<Vec<u8>, BwError> {
-    if value.len() % 2 != 0 {
+    if !value.len().is_multiple_of(2) {
         return Err(BwError("hexadecimal de longitud impar".into()));
     }
     value
         .as_bytes()
-        .chunks_exact(2)
+        .chunks(2)
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).unwrap_or(""), 16)
                 .map_err(|_| BwError("hexadecimal inválido".into()))
@@ -521,10 +521,11 @@ fn diff_command(args: &[String]) -> Result<(), BwError> {
 
 fn redact(value: &str) -> String {
     let mut output = value.to_owned();
-    if let Some(home) = env::var_os("HOME").map(|path| path.to_string_lossy().into_owned()) {
-        if !home.is_empty() {
-            output = output.replace(&home, "[HOME]");
-        }
+    if let Some(home) = env::var_os("HOME")
+        .map(|path| path.to_string_lossy().into_owned())
+        .filter(|home| !home.is_empty())
+    {
+        output = output.replace(&home, "[HOME]");
     }
     output
         .split_whitespace()
