@@ -115,14 +115,13 @@ pub fn diagnose(base: &Snapshot, current: &Snapshot, changes: &Changes) -> Vec<F
     if let (Some(before), Some(after)) = (
         base.fields.get("memory.available_kib").and_then(|v| v.parse::<u64>().ok()),
         current.fields.get("memory.available_kib").and_then(|v| v.parse::<u64>().ok()),
-    ) {
-        if before > 0 && after < before.saturating_mul(3) / 4 {
-            findings.push(Finding {
-                subsystem: "memoria",
-                title: "Memoria disponible descendió más de un 25 %",
-                evidence: format!("MemAvailable: {before} KiB -> {after} KiB"),
-            });
-        }
+    ) && before > 0 && after < before.saturating_mul(3) / 4
+    {
+        findings.push(Finding {
+            subsystem: "memoria",
+            title: "Memoria disponible descendió más de un 25 %",
+            evidence: format!("MemAvailable: {before} KiB -> {after} KiB"),
+        });
     }
 
     findings

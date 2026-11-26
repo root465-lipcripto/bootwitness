@@ -127,15 +127,15 @@ fn snapshot_command(args: &[String]) -> Result<(), BwError> {
             if directory.exists() {
                 for entry in fs::read_dir(directory)?.flatten() {
                     let path = entry.path();
-                    if path.extension().is_some_and(|extension| extension == "bws") {
-                        if let Ok(snapshot) = read_snapshot(&path) {
-                            println!(
-                                "{}\t{}\t{}",
-                                path.file_stem().unwrap_or_default().to_string_lossy(),
-                                snapshot.fields.get("snapshot.name").map(String::as_str).unwrap_or("unnamed"),
-                                snapshot.fields.get("snapshot.created_unix").map(String::as_str).unwrap_or("unknown")
-                            );
-                        }
+                    if path.extension().is_some_and(|extension| extension == "bws")
+                        && let Ok(snapshot) = read_snapshot(&path)
+                    {
+                        println!(
+                            "{}\t{}\t{}",
+                            path.file_stem().unwrap_or_default().to_string_lossy(),
+                            snapshot.fields.get("snapshot.name").map(String::as_str).unwrap_or("unnamed"),
+                            snapshot.fields.get("snapshot.created_unix").map(String::as_str).unwrap_or("unknown")
+                        );
                     }
                 }
             }
