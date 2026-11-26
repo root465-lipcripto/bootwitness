@@ -123,4 +123,4 @@ See CONTRIBUTING.md. Changes should preserve the offline, read-only default and 
 
 ## License
 
-GPL-3.0-or-later. See LICENSE.
+GPL-3.0-only. See LICENSE.
